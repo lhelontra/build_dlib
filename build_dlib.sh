@@ -73,10 +73,14 @@ function dw_dlib() {
   if [ -d ${WORKDIR}/dlib-${DLIB_VERSION}/ ]; then
        log_app_msg "dlib exists."
        return 0
-   fi
+  fi
 
-  log_app_msg "Downloading dlib https://github.com/davisking/dlib/archive/${DLIB_VERSION}.zip..."
-  wget --no-check-certificate -q -c https://github.com/davisking/dlib/archive/${DLIB_VERSION}.zip -O "$DLIB_SRC_FILENAME" || return 1
+  local url="https://github.com/davisking/dlib/archive/${DLIB_VERSION}.zip"
+
+  [ "$DLIB_VERSION" != "master" ] && url="https://github.com/davisking/dlib/archive/v${DLIB_VERSION}.zip"
+
+  log_app_msg "Downloading dlib ${url} ..."
+  wget --no-check-certificate -q -c $url -O "$DLIB_SRC_FILENAME" || return 1
 
   unzip -o $DLIB_SRC_FILENAME -d "$WORKDIR" 1>/dev/null || {
     log_failure_msg "error on uncompress dlib src"
