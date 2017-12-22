@@ -388,6 +388,7 @@ while [ "$1" != "" ]; do
     --clean-dlib-sources)
         check_loadedConfig
         rm -rf ${WORKDIR}/dlib-${DLIB_VERSION}/
+        rm -f ${WORKDIR}/dlib.zip
         log_app_msg "dlib folder was removed."
         exit 0
     ;;
