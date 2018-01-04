@@ -218,6 +218,11 @@ function cmakegen() {
             fi
         }
 
+    else
+      [ "$PYTHON_VERSION" == "3" ] && {
+        FLAGS+=" -D PYTHON3=ON"
+      }
+
     fi
 
     if [ ! -z "$C_CXX_FLAGS" ]; then
