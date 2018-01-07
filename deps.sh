@@ -98,7 +98,6 @@ function install_deps() {
 
     apt-get --allow-unauthenticated install wget unzip checkinstall build-essential cmake pkg-config ||  {
         log_warn_msg "wget unzip checkinstall build-essential cmake pkg-config"
-        return 1
     }
 
     echo "$FLAGS" | grep "DLIB_NO_GUI_SUPPORT=OFF" 1>/dev/null && {
