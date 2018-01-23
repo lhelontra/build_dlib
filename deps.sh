@@ -134,7 +134,12 @@ function install_deps() {
     }
 
     [ "$PYTHON_SUPPORT" == "ON" ] && {
-        [ "$PYTHON_VERSION" == "2" ] && package_file="libpython-dev${arch}" || package_file="libpython3-dev${arch}"
+
+        apt-get --allow-unauthenticated install python${PYTHON_VERSION} ||  {
+            log_warn_msg "python${PYTHON_VERSION}"
+        }
+
+        [[ "$PYTHON_VERSION" == *"2"* ]] && package_file="libpython-all-dev${arch}" || package_file="libpython3-all-dev${arch}"
         package_file+=" libboost-python-dev${arch}"
         if [ "$make_local_deps" == "no" ]; then
             apt-get --allow-unauthenticated install $package_file || {
