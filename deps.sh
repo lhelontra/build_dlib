@@ -140,7 +140,6 @@ function install_deps() {
         }
 
         [[ "$PYTHON_VERSION" == *"2"* ]] && package_file="libpython-all-dev${arch}" || package_file="libpython3-all-dev${arch}"
-        package_file+=" libboost-python-dev${arch}"
         if [ "$make_local_deps" == "no" ]; then
             apt-get --allow-unauthenticated install $package_file || {
                 log_warn_msg "couldn't install $package_file"

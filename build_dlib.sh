@@ -138,14 +138,10 @@ function cmakegen() {
 
     makeBuildDirAndGo
 
-    # NOTE: compatible with dlib's version less than 19.8, will be removed in future
-    [ "$PYTHON_SUPPORT" == "ON" ] && {
-      [[ "$PYTHON_VERSION" == *"3"* ]] && FLAGS+=" -D PYTHON3=ON"
-      [ "$CROSS_COMPILER" == "yes" ] && FLAGS+=" -DBOOST_LIBRARYDIR=${deps_path}/usr/lib/$CROSSTOOL_NAME"
-
-      # compatible with newer dlib version
-      [ ! -z "$PYTHON_VERSION" ] && FLAGS+=" -D PYBIND11_PYTHON_VERSION=$PYTHON_VERSION"
-    }
+    # compatible with newer dlib version
+    if [ ! -z "$PYTHON_VERSION" ] && [ "$PYTHON_SUPPORT" == "ON" ]; then
+      FLAGS+=" -D PYBIND11_PYTHON_VERSION=$PYTHON_VERSION"
+    fi
 
     if [ "$CROSS_COMPILER" == "yes" ]; then
         FLAGS+=" -DCMAKE_LINKER=${CROSSTOOL_DIR}/bin/${CROSSTOOL_NAME}-ld"
