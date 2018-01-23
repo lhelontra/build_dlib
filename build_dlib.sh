@@ -80,6 +80,10 @@ function dw_dlib() {
   [ "$DLIB_VERSION" != "master" ] && url="https://github.com/davisking/dlib/archive/v${DLIB_VERSION}.zip"
 
   log_app_msg "Downloading dlib ${url} ..."
+
+  rm -f "$DLIB_SRC_FILENAME" &>/dev/null
+  rm -rf "${WORKDIR}/dlib-${DLIB_VERSION}/" &>/dev/null
+
   wget --no-check-certificate -q -c $url -O "$DLIB_SRC_FILENAME" || return 1
 
   unzip -o $DLIB_SRC_FILENAME -d "$WORKDIR" 1>/dev/null || {
@@ -133,6 +137,15 @@ function cmakegen() {
     fi
 
     makeBuildDirAndGo
+
+    # NOTE: compatible with dlib's version less than 19.8, will be removed in future
+    [ "$PYTHON_SUPPORT" == "ON" ] && {
+      [[ "$PYTHON_VERSION" == *"3"* ]] && FLAGS+=" -D PYTHON3=ON"
+      [ "$CROSS_COMPILER" == "yes" ] && FLAGS+=" -DBOOST_LIBRARYDIR=${deps_path}/usr/lib/$CROSSTOOL_NAME"
+
+      # compatible with newer dlib version
+      [ ! -z "$PYTHON_VERSION" ] && FLAGS+=" -D PYBIND11_PYTHON_VERSION=$PYTHON_VERSION"
+    }
 
     if [ "$CROSS_COMPILER" == "yes" ]; then
         FLAGS+=" -DCMAKE_LINKER=${CROSSTOOL_DIR}/bin/${CROSSTOOL_NAME}-ld"
@@ -195,7 +208,6 @@ function cmakegen() {
         echo "set (CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)" >> $toolchain_cmakefile
 
         [ "$PYTHON_SUPPORT" == "ON" ] && {
-
             if [ ! -d "${deps_path}" ] && [ -z "$(echo $FLAGS | grep -i PYTHON_INCLUDE_DIR)" ] && [ -z "$(echo $FLAGS | grep -i PYTHON_LIBRARY)" ]; then
                 log_warn_msg "not found packages: libpython-dev${arch}"
                 echo "Please runs this command: $0 -c <configfile> -dw-cross-deps \"libpython-dev${arch}\""
@@ -205,23 +217,26 @@ function cmakegen() {
 
             # finds python libraries
             if [ -z "$(echo $FLAGS | grep -i PYTHON_INCLUDE_DIR)" ]; then
-                [ "$PYTHON_VERSION" == "3" ] && {
-                    FLAGS+=" -D PYTHON3=ON"
-                    FLAGS+=" -DPYTHON_INCLUDE_DIR=$(find ${deps_path}/ -type d -wholename '*include/python3*')"
-                    FLAGS+=" -DPYTHON_LIBRARY=$(find ${deps_path}/ -iname '*libpython3*.so' | tail -n1)"
-                } || {
-                    FLAGS+=" -DPYTHON_INCLUDE_DIR=$(find ${deps_path}/ -type d -wholename '*include/python2*')"
-                    FLAGS+=" -DPYTHON_LIBRARY=$(find ${deps_path}/ -iname '*libpython2*.so' | tail -n1)"
-                }
-                # finds boost library
-                FLAGS+=" -DBOOST_LIBRARYDIR=${deps_path}/usr/lib/$CROSSTOOL_NAME"
+                py_library=$(find ${deps_path}/ -iname "*libpython${PYTHON_VERSION}.so" | tail -n1)
+
+                # finds pyconfig.h and copy to another patch
+                pyconfig=$(find ${deps_path}/usr/include/${CROSSTOOL_NAME}/ -iname "*python${PYTHON_VERSION}*")
+                py_include_dir=$(find ${deps_path}/ -type d -wholename "*include/python${PYTHON_VERSION}*" | tail -n1)
+
+                if [ -f "${pyconfig}/pyconfig.h" ]; then
+                  cp -a "${pyconfig}/pyconfig.h" "${py_include_dir}/"
+                fi
+
+                FLAGS+=" -DPYTHON_EXECUTABLE=$(command -v python${PYTHON_VERSION})"
+                FLAGS+=" -DPYTHON_INCLUDE_DIR=$py_include_dir"
+                FLAGS+=" -DPYTHON_INCLUDE_DIRS=$py_include_dir"
+                FLAGS+=" -DPYTHON_LIBRARY=$py_library"
+                FLAGS+=" -DPYTHON_LIBRARIES=$py_library"
+                FLAGS+=" -DPYTHON_LIBRARY_SUFFIX=$PYTHON_VERSION"
+                FLAGS+=" -DPYTHON_MODULE_EXTENSION='.so'"
+                FLAGS+=" -D PYTHONLIBS_FOUND=ON"
             fi
         }
-
-    else
-      [ "$PYTHON_VERSION" == "3" ] && {
-        FLAGS+=" -D PYTHON3=ON"
-      }
 
     fi
 
@@ -255,10 +270,10 @@ function checkinstallgen() {
     local package_name="${CHECKINSTALL_PKGNAME}"
 
     if [ "$PYTHON_SUPPORT" == "ON" ]; then
-        [ "$PYTHON_VERSION" == "3" ] && package_name="python3-${package_name}" || package_name="python-${package_name}"
+        [[ "$PYTHON_VERSION" == *"3"* ]] && package_name="python3-${package_name}" || package_name="python-${package_name}"
         local python_dir="$(python${PYTHON_VERSION} -c 'import site; print(site.getsitepackages()[0])')"
         mkdir -p .debian_package/$python_dir/
-        cp dlib.so .debian_package/$python_dir/
+        cp dlib.* .debian_package/$python_dir/dlib.so
 
         [ "$CROSS_COMPILER" == "yes" ] && local ARCH="$CROSSTOOL_ARCH" || local ARCH="$(dpkg --print-architecture)"
         local sizeof=$(du -k --total .debian_package/$python_dir/ | tail -n1 | awk '{ print $1 }')
