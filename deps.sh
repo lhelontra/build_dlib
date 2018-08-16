@@ -124,7 +124,7 @@ function install_deps() {
     }
 
     echo "$FLAGS" | grep "DLIB_USE_BLAS=ON" 1>/dev/null && {
-        package_file="libopenblas-dev${arch} libblas-dev${arch}"
+        package_file="libopenblas-dev${arch} libblas-dev${arch} libatlas-base-dev${arch}"
         if [ "$make_local_deps" == "no" ]; then
             apt-get --allow-unauthenticated install $package_file || {
                 log_warn_msg "couldn't install $package_file"
