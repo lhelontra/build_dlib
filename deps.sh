@@ -9,17 +9,18 @@ function fetch_cross_local_deps() {
 
     local deb_path="${WORKDIR}/cross_deps/debs/${CROSSTOOL_ARCH}"
     local deps_path="${WORKDIR}/cross_deps/deps/${CROSSTOOL_ARCH}"
-    local deps=$(apt-cache depends --recurse --no-recommends --no-suggests --no-conflicts --no-breaks --no-replaces --no-enhances --no-pre-depends ${packages} 2>/dev/null | grep "^\w" | grep -i "${CROSSTOOL_ARCH}")
 
     mkdir -p $deb_path
     mkdir -p $deps_path
 
-    [ -z "$deps" ] && {
-        log_warn_msg "not found requested packages: $packages"
-        return 1
-    }
+    # creates a temporary dpkg status
+    local temp_dpkg_status="${deb_path}/.status"
+    > $temp_dpkg_status
 
-    apt-get --print-uris download $deps 2>/dev/null | grep "http://" |  awk '{ print $1 }' | tr -d "'" | while read url; do
+    local pkg_list=$(apt-cache depends --recurse --no-recommends --no-suggests --no-conflicts --no-breaks --no-replaces --no-enhances --no-pre-depends -o Dir::State::status=${temp_dpkg_status} $packages | grep "^\w")
+    local urls=$(apt-get download --print-uris --allow-unauthenticated -o Dir::State::status=${temp_dpkg_status} $pkg_list | grep "http" |  awk '{ print $1 }' | tr -d "'")
+
+    for url in $urls; do
 
         [ ! -f "${deb_path}/$(basename $url)" ] && {
             log_app_msg "Downloading: $url"
@@ -139,7 +140,7 @@ function install_deps() {
             log_warn_msg "python${PYTHON_VERSION}"
         }
 
-        [[ "$PYTHON_VERSION" == *"2"* ]] && package_file="libpython-all-dev${arch}" || package_file="libpython3-all-dev${arch}"
+        [[ "$PYTHON_VERSION" == *"2"* ]] && package_file="libpython-all-dev${arch} libpython-dev${arch} python-dev${arch} python-numpy" || package_file="libpython3-all-dev${arch} python3-dev${arch} python3-numpy"
         if [ "$make_local_deps" == "no" ]; then
             apt-get --allow-unauthenticated install $package_file || {
                 log_warn_msg "couldn't install $package_file"
