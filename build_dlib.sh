@@ -158,6 +158,7 @@ function cmakegen() {
         [ "$CROSS_COMPILER" == "yes" ] && [ -d "${deps_path}" ] && [ -f "${deps_path}/.pkgconfig" ] && {
             source "${deps_path}/.pkgconfig"
             export PKG_CONFIG_LIBDIR="$PKG_CONFIG_LIBDIR"
+            export PKG_CONFIG_PATH="$PKG_CONFIG_LIBDIR"
             FLAGS+=" -DPKG_CONFIG_EXECUTABLE=$(command -v pkg-config)"
         }
 
@@ -204,34 +205,46 @@ function cmakegen() {
         echo "set (CMAKE_FIND_ROOT_PATH_MODE_INCLUDE ONLY)" >> $toolchain_cmakefile
 
         [ "$PYTHON_SUPPORT" == "ON" ] && {
-            if [ ! -d "${deps_path}" ] && [ -z "$(echo $FLAGS | grep -i PYTHON_INCLUDE_DIR)" ] && [ -z "$(echo $FLAGS | grep -i PYTHON_LIBRARY)" ]; then
-                log_warn_msg "not found packages: libpython-dev${arch}"
-                echo "Please runs this command: $0 -c <configfile> -dw-cross-deps \"libpython-dev${arch}\""
-                echo "or define PYTHON_INCLUDE_DIR and PYTHON_LIBRARY in config."
-                return 1
+
+            if [ ! -d "${deps_path}" ]; then
+              log_warn_msg "not found cross libraries path."
+              echo "Please runs this command: $0 -c <configfile> --check-deps"
+              return 1
             fi
+
+            # finds for local python executable version
+            [[ "$PYTHON_VERSION" == *"2"* ]] && PYTHON_VERSION="2" || PYTHON_VERSION="3"
+            py_executable=$(find ${deps_path}/ -type f -wholename "*bin/python${PYTHON_VERSION}*" | sort | head -n1)
+
+            if [ -z "${py_executable}" ]; then
+              log_warn_msg "not found python executable."
+              echo "Please runs this command: $0 -c <configfile> --check-deps"
+              return 1
+            fi
+
+            # gets major minor executable version
+            PYTHON_VERSION=$(echo $py_executable | tail -c 4)
 
             # finds python libraries
-            if [ -z "$(echo $FLAGS | grep -i PYTHON_INCLUDE_DIR)" ]; then
-                py_library=$(find ${deps_path}/ -iname "*libpython${PYTHON_VERSION}.so" | tail -n1)
+            py_library=$(find ${deps_path}/ -iname "*libpython${PYTHON_VERSION}.so" | tail -n1)
 
-                # finds pyconfig.h and copy to another patch
-                pyconfig=$(find ${deps_path}/usr/include/${CROSSTOOL_NAME}/ -iname "*python${PYTHON_VERSION}*")
-                py_include_dir=$(find ${deps_path}/ -type d -wholename "*include/python${PYTHON_VERSION}*" | tail -n1)
+            # finds pyconfig.h and copy to another patch
+            pyconfig=$(find ${deps_path}/usr/include/${CROSSTOOL_NAME}/ -iname "*python${PYTHON_VERSION}*")
+            py_include_dir=$(find ${deps_path}/ -type d -wholename "*include/python${PYTHON_VERSION}*" | tail -n1)
 
-                if [ -f "${pyconfig}/pyconfig.h" ]; then
-                  cp -a "${pyconfig}/pyconfig.h" "${py_include_dir}/"
-                fi
-
-                FLAGS+=" -DPYTHON_EXECUTABLE=$(command -v python${PYTHON_VERSION})"
-                FLAGS+=" -DPYTHON_INCLUDE_DIR=$py_include_dir"
-                FLAGS+=" -DPYTHON_INCLUDE_DIRS=$py_include_dir"
-                FLAGS+=" -DPYTHON_LIBRARY=$py_library"
-                FLAGS+=" -DPYTHON_LIBRARIES=$py_library"
-                FLAGS+=" -DPYTHON_LIBRARY_SUFFIX=$PYTHON_VERSION"
-                FLAGS+=" -DPYTHON_MODULE_EXTENSION='.so'"
-                FLAGS+=" -D PYTHONLIBS_FOUND=ON"
+            if [ -f "${pyconfig}/pyconfig.h" ]; then
+              cp -a "${pyconfig}/pyconfig.h" "${py_include_dir}/"
             fi
+
+            FLAGS+=" -DPYTHON_EXECUTABLE=$py_executable"
+            FLAGS+=" -DPYTHON_INCLUDE_DIR=$py_include_dir"
+            FLAGS+=" -DPYTHON_INCLUDE_DIRS=$py_include_dir"
+            FLAGS+=" -DPYTHON_LIBRARY=$py_library"
+            FLAGS+=" -DPYTHON_LIBRARIES=$py_library"
+            FLAGS+=" -DPYTHON_LIBRARY_SUFFIX=$PYTHON_VERSION"
+            FLAGS+=" -DPYTHON_MODULE_EXTENSION='.so'"
+            FLAGS+=" -D PYTHONLIBS_FOUND=ON"
+            FLAGS+=" -DUSE_PYTHON_INCLUDE_DIR=ON"
         }
 
     fi
@@ -241,7 +254,7 @@ function cmakegen() {
         FLAGS+=" -DCMAKE_C_FLAGS=${C_CXX_FLAGS} -DCMAKE_CXX_FLAGS=${C_CXX_FLAGS}"
     fi
 
-    FLAGS+=" .."
+    FLAGS+=" --build --config Release .."
     cmake $FLAGS || return 1
 }
 
